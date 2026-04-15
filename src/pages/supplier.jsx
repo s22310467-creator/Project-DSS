@@ -9,6 +9,67 @@ const Supplier = () => {
     { id: 3, kode: 'S03', nama: 'Firma Global Tech', alamat: 'Bandung', email: 'hello@globaltech.com' },
   ]);
 
+  // ================= TAMBAHAN =================
+  const [showModal, setShowModal] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+
+  const [formData, setFormData] = useState({
+    kode: "",
+    nama: "",
+    alamat: "",
+    email: ""
+  });
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleAdd = () => {
+    setIsEdit(false);
+    setFormData({ kode: "", nama: "", alamat: "", email: "" });
+    setShowModal(true);
+  };
+
+  const handleEdit = (sup) => {
+    setIsEdit(true);
+    setSelectedId(sup.id);
+    setFormData({
+      kode: sup.kode,
+      nama: sup.nama,
+      alamat: sup.alamat,
+      email: sup.email
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = (id) => {
+    setSuppliers(suppliers.filter((s) => s.id !== id));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    if (isEdit) {
+      const updated = suppliers.map((s) =>
+        s.id === selectedId ? { ...s, ...formData } : s
+      );
+      setSuppliers(updated);
+    } else {
+      const newSupplier = {
+        id: Date.now(),
+        ...formData
+      };
+      setSuppliers([...suppliers, newSupplier]);
+    }
+
+    setShowModal(false);
+  };
+  // ================= END TAMBAHAN =================
+
   return (
     <div className="p-6 md:p-8 space-y-6">
       {/* Header Halaman */}
@@ -23,7 +84,10 @@ const Supplier = () => {
           </div>
         </div>
 
-        <button className="flex items-center justify-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-200 transition-all font-bold">
+        <button 
+          onClick={handleAdd} 
+          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-200 transition-all font-bold"
+        >
           <Plus className="w-5 h-5" />
           Tambah Supplier
         </button>
@@ -77,10 +141,18 @@ const Supplier = () => {
                     <td className="px-6 py-4 text-sm text-gray-500 italic">{sup.alamat}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1">
-                        <button title="Edit" className="p-2 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-all">
+                        <button 
+                          title="Edit" 
+                          onClick={() => handleEdit(sup)}
+                          className="p-2 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-all"
+                        >
                           <Edit3 className="w-4 h-4" />
                         </button>
-                        <button title="Hapus" className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-all">
+                        <button 
+                          title="Hapus" 
+                          onClick={() => handleDelete(sup.id)}
+                          className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-all"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -100,6 +172,35 @@ const Supplier = () => {
           )}
         </div>
       </div>
+
+      {/* ================= TAMBAHAN MODAL ================= */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg">
+            <h2 className="text-lg font-bold mb-4">
+              {isEdit ? "Edit Supplier" : "Tambah Supplier"}
+            </h2>
+
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <input type="text" name="kode" placeholder="Kode Supplier" value={formData.kode} onChange={handleChange} className="w-full border p-2 rounded-lg" required />
+              <input type="text" name="nama" placeholder="Nama Supplier" value={formData.nama} onChange={handleChange} className="w-full border p-2 rounded-lg" required />
+              <input type="text" name="alamat" placeholder="Alamat" value={formData.alamat} onChange={handleChange} className="w-full border p-2 rounded-lg" />
+              <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} className="w-full border p-2 rounded-lg" />
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 bg-gray-200 rounded-lg">
+                  Batal
+                </button>
+                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-lg">
+                  Simpan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ================= END TAMBAHAN ================= */}
+
     </div>
   );
 };

@@ -3,7 +3,7 @@ import { Scale, Info, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 const AnalisisAHP = () => {
   // Contoh data kriteria yang diambil dari state/backend
-  const kriteria = ['Harga', 'Kualitas', 'Pelayanan', 'Garansi'];
+  const kriteria = ['Harga', 'Pelayanan', 'Kualitas', 'Ketersediaan'];
 
   return (
     <div className="p-6 md:p-8 space-y-6">
