@@ -1,267 +1,208 @@
-import React, { useState } from 'react';
-import { Settings2, Plus, Edit, Trash2 } from 'lucide-react';
-import TabelHasil from '../components/tabelhasil';
+import React, { useState, useEffect } from 'react';
+import { Settings2, Plus, Trash2, ChevronRight, X } from 'lucide-react';
+import { db } from '../firebase';
+import { ref, onValue, push, remove } from 'firebase/database';
 
 const Kriteria = () => {
-  const headers = ["No", "Kode", "Nama Kriteria", "Sifat (Cost/Benefit)", "Aksi"];
-
-  const dataKriteria = [
-    { no: 1, kode: "C1", nama: "Harga", sifat: "Cost" },
-    { no: 2, kode: "C2", nama: "Kualitas", sifat: "Benefit" },
-    { no: 3, kode: "C3", nama: "Ketersediaan", sifat: "Benefit" },
-    { no: 4, kode: "C4", nama: "Pelayanan", sifat: "Benefit" },
-  ];
-
-  const [kriteria, setKriteria] = useState(dataKriteria);
-
-  const [subKriteria, setSubKriteria] = useState([
-    { id: 1, parentNo: 4, nama: "Ekspedisi", sifat: "Cost" },
-    { id: 2, parentNo: 4, nama: "Sistem Pembayaran", sifat: "Benefit" },
-    { id: 3, parentNo: 4, nama: "Tempo Pembayaran", sifat: "Benefit" },
-
-    { id: 4, parentNo: 2, nama: "Kondisi Saat Tiba", sifat: "Benefit" },
-    { id: 5, parentNo: 2, nama: "Tanggal Kadaluarsa", sifat: "Benefit" },
-    { id: 6, parentNo: 2, nama: "Garansi", sifat: "Benefit" },
-    { id: 7, parentNo: 2, nama: "Kemasan", sifat: "Benefit" },
-    { id: 8, parentNo: 2, nama: "Petunjuk Kegunaan", sifat: "Benefit" },
-    { id: 9, parentNo: 2, nama: "Ketepatan Jumlah", sifat: "Benefit" },
-  ]);
-
+  const [kriteria, setKriteria] = useState([]);
+  const [subKriteria, setSubKriteria] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [isEdit, setIsEdit] = useState(false);
-  const [selectedNo, setSelectedNo] = useState(null);
-
   const [isSub, setIsSub] = useState(false);
-  const [selectedSubId, setSelectedSubId] = useState(null);
-
-  const [formData, setFormData] = useState({
-    kode: "",
-    nama: "",
+  const [formData, setFormData] = useState({ 
+    kode: "", 
+    nama: "", 
     sifat: "Benefit",
-    parentNo: ""
+    parentId: "" 
   });
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
+  useEffect(() => {
+    onValue(ref(db, 'kriteria'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.val();
+        setKriteria(Object.keys(data).map(id => ({ id, ...data[id] })));
+      } else setKriteria([]);
     });
-  };
 
-  const handleAdd = () => {
-    setIsEdit(false);
-    setIsSub(false);
-    setFormData({ kode: "", nama: "", sifat: "Benefit", parentNo: "" });
-    setShowModal(true);
-  };
+    onValue(ref(db, 'sub_kriteria'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.val();
+        setSubKriteria(Object.keys(data).map(id => ({ id, ...data[id] })));
+      } else setSubKriteria([]);
+    });
+  }, []);
 
-  const handleEdit = (item) => {
-    setIsEdit(true);
-    setIsSub(false);
-    setSelectedNo(item.no);
-    setFormData(item);
-    setShowModal(true);
-  };
-
-  const handleDelete = (no) => {
-    setKriteria(kriteria.filter((k) => k.no !== no));
-    setSubKriteria(subKriteria.filter((s) => s.parentNo !== no)); 
-  };
-
-  const handleAddSub = (parentNo) => {
-    setIsSub(true);
-    setIsEdit(false);
-    setFormData({ nama: "", sifat: "Benefit", parentNo });
-    setShowModal(true);
-  };
-
-  const handleEditSub = (sub) => {
-    setIsSub(true);
-    setIsEdit(true);
-    setSelectedSubId(sub.id);
-    setFormData(sub);
-    setShowModal(true);
-  };
-
-  const handleDeleteSub = (id) => {
-    setSubKriteria(subKriteria.filter((s) => s.id !== id));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    if (isSub) {
-      if (isEdit) {
-        const updated = subKriteria.map((s) =>
-          s.id === selectedSubId ? { ...s, ...formData } : s
-        );
-        setSubKriteria(updated);
-      } else {
-        const newSub = {
-          id: subKriteria.length + 1,
-          ...formData
-        };
-        setSubKriteria([...subKriteria, newSub]);
-      }
+  const openModal = (forSub = false) => {
+    setIsSub(forSub);
+    if (!forSub) {
+      const nextIndex = kriteria.length + 1;
+      setFormData({ kode: `C${nextIndex}`, nama: "", sifat: "Benefit", parentId: "" });
     } else {
-      if (isEdit) {
-        const updated = kriteria.map((k) =>
-          k.no === selectedNo ? { ...k, ...formData } : k
-        );
-        setKriteria(updated);
-      } else {
-        const newData = {
-          no: Math.max(...kriteria.map(k => k.no)) + 1, 
-          ...formData
-        };
-        setKriteria([...kriteria, newData]);
-      }
+      setFormData({ kode: "", nama: "", sifat: "Benefit", parentId: "" });
     }
-
-    setShowModal(false);
+    setShowModal(true);
   };
 
-  const renderData = kriteria.flatMap((item) => {
-    const subs = subKriteria.filter(s => s.parentNo === item.no);
+  const handleParentChange = (e) => {
+    const pId = e.target.value;
+    if (pId) {
+      const parent = kriteria.find(k => k.id === pId);
+      const siblings = subKriteria.filter(sk => sk.parentId === pId);
+      const nextSubIndex = siblings.length + 1;
+      setFormData(prev => ({ 
+        ...prev, 
+        parentId: pId, 
+        kode: `${parent.kode}.${nextSubIndex}` 
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, parentId: "", kode: "" }));
+    }
+  };
 
-    const parentRow = {
-      ...item,
-      aksi: (
-        <div className="flex gap-2">
-          <button onClick={() => handleEdit(item)} className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
-            <Edit size={16} />
-          </button>
-          <button onClick={() => handleDelete(item.no)} className="p-1.5 bg-red-100 text-red-600 rounded-lg">
-            <Trash2 size={16} />
-          </button>
-          <button onClick={() => handleAddSub(item.no)} className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg">
-            <Plus size={16} />
-          </button>
-        </div>
-      )
-    };
+  const handleAdd = (e) => {
+    e.preventDefault();
+    const path = isSub ? 'sub_kriteria' : 'kriteria';
+    push(ref(db, path), formData);
+    closeModal();
+  };
 
-    const subRows = subs.map((sub, i) => ({
-      no: `${item.kode}.${i + 1}`,
-      kode: "-",
-      nama: `↳ ${sub.nama}`,
-      sifat: sub.sifat,
-      aksi: (
-        <div className="flex gap-2">
-          <button onClick={() => handleEditSub(sub)} className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
-            <Edit size={16} />
-          </button>
-          <button onClick={() => handleDeleteSub(sub.id)} className="p-1.5 bg-red-100 text-red-600 rounded-lg">
-            <Trash2 size={16} />
-          </button>
-        </div>
-      )
-    }));
+  const closeModal = () => {
+    setShowModal(false);
+    setIsSub(false);
+    setFormData({ kode: "", nama: "", sifat: "Benefit", parentId: "" });
+  };
 
-    return [parentRow, ...subRows];
-  });
+  // Reusable Component untuk Label Sifat (Agar Kriteria & Sub Sama)
+  const SifatBadge = ({ sifat }) => (
+    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+      sifat === 'Cost' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-blue-100 text-blue-700 border border-blue-200'
+    }`}>
+      {sifat}
+    </span>
+  );
 
   return (
-    <div className="space-y-6 page-transition">
-
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-white rounded-xl shadow-sm border border-emerald-100">
-            <Settings2 className="w-6 h-6 text-emerald-600" />
+          <div className="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-200 text-white">
+             <Settings2 className="w-6 h-6"/>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Data Kriteria</h1>
-            <p className="text-sm text-gray-500">Kelola kriteria penilaian untuk metode AHP & SAW</p>
-          </div>
+          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Data Kriteria & Sub</h1>
         </div>
-
-        <button onClick={handleAdd}
-          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl">
-          <Plus size={18} /> Tambah Kriteria
+        <button 
+          onClick={() => openModal(false)} 
+          className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-lg hover:bg-emerald-700 transition-all font-bold active:scale-95"
+        >
+          <Plus size={18}/> Tambah Data
         </button>
       </div>
 
-      {/* TABEL */}
-      <div className="bg-white/50 rounded-2xl shadow-xl overflow-hidden">
-        <TabelHasil 
-          title="Daftar Kriteria Penilaian"
-          headers={headers}
-          data={renderData}
-        />
+      <div className="bg-white/50 border border-white backdrop-blur-md rounded-2xl overflow-hidden shadow-sm">
+        <table className="w-full text-left">
+          <thead className="bg-emerald-50/50 border-b border-emerald-100">
+            <tr>
+              <th className="p-4 text-xs font-black uppercase text-emerald-900">Kode</th>
+              <th className="p-4 text-xs font-black uppercase text-emerald-900">Nama</th>
+              <th className="p-4 text-xs font-black uppercase text-emerald-900 text-center">Sifat</th>
+              <th className="p-4 text-xs font-black uppercase text-emerald-900 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/60">
+            {kriteria.map(k => (
+              <React.Fragment key={k.id}>
+                {/* Baris Kriteria Utama */}
+                <tr className="bg-emerald-50/20 group">
+                  <td className="p-4 font-mono font-bold text-emerald-800">{k.kode}</td>
+                  <td className="p-4 font-bold text-gray-700">{k.nama}</td>
+                  <td className="p-4 text-center">
+                    <SifatBadge sifat={k.sifat} />
+                  </td>
+                  <td className="p-4 text-right">
+                    <button 
+                      onClick={() => remove(ref(db, `kriteria/${k.id}`))} 
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-90"
+                      title="Hapus Kriteria"
+                    >
+                      <Trash2 size={18}/>
+                    </button>
+                  </td>
+                </tr>
+
+                {/* Baris Sub Kriteria */}
+                {subKriteria.filter(sk => sk.parentId === k.id).map(sk => (
+                  <tr key={sk.id} className="hover:bg-white/40 transition-colors">
+                    <td className="p-3 pl-10 font-mono text-xs text-emerald-600/70 italic">{sk.kode}</td>
+                    <td className="p-3 pl-4 text-sm text-gray-600 flex items-center gap-2">
+                      <ChevronRight size={14} className="text-emerald-400"/> {sk.nama}
+                    </td>
+                    <td className="p-3 text-center">
+                      {/* Sifat Subkriteria sekarang SAMA persis dengan kriteria utama */}
+                      <SifatBadge sifat={sk.sifat} />
+                    </td>
+                    <td className="p-3 text-right">
+                      <button 
+                        onClick={() => remove(ref(db, `sub_kriteria/${sk.id}`))} 
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-90"
+                        title="Hapus Subkriteria"
+                      >
+                        {/* Ukuran dan warna icon SAMA persis (18px) */}
+                        <Trash2 size={18}/>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* MODAL */}
+      {/* Modal tetap sama dengan fungsi openModal/handleParentChange yang sudah diperbaiki */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-xl w-full max-w-md">
-
-            <form onSubmit={handleSubmit} className="space-y-3">
-
-              {!isSub && (
-                <>
-                  <input
-                    name="kode"
-                    value={formData.kode}
-                    onChange={handleChange}
-                    placeholder="Kode Kriteria"
-                    className="w-full border p-2 rounded-lg"
-                  />
-
-                  <input
-                    name="nama"
-                    value={formData.nama}
-                    onChange={handleChange}
-                    placeholder="Nama Kriteria"
-                    className="w-full border p-2 rounded-lg"
-                  />
-
-                  <select
-                    name="sifat"
-                    value={formData.sifat}
-                    onChange={handleChange}
-                    className="w-full border p-2 rounded-lg"
-                  >
-                    <option value="Benefit">Benefit</option>
-                    <option value="Cost">Cost</option>
-                  </select>
-                </>
-              )}
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl relative border border-emerald-50">
+            <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors">
+              <X size={20}/>
+            </button>
+            <h2 className="text-lg font-black mb-5 text-gray-800">Tambah Data Baru</h2>
+            <form onSubmit={handleAdd} className="space-y-4">
+              <div className="flex bg-gray-100 p-1 rounded-xl">
+                <button type="button" onClick={() => openModal(false)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${!isSub ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>Kriteria</button>
+                <button type="button" onClick={() => openModal(true)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${isSub ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>Sub</button>
+              </div>
 
               {isSub && (
-                <>
-                  <select name="parentNo" value={formData.parentNo} onChange={handleChange}>
-                    {kriteria.map(k => (
-                      <option key={k.no} value={k.no}>{k.nama}</option>
-                    ))}
-                  </select>
-
-                  <input
-                    name="nama"
-                    value={formData.nama}
-                    onChange={handleChange}
-                    placeholder="Nama Sub"
-                  />
-
-                  <select name="sifat" value={formData.sifat} onChange={handleChange}>
-                    <option value="Benefit">Benefit</option>
-                    <option value="Cost">Cost</option>
-                  </select>
-                </>
+                <select 
+                  value={formData.parentId} 
+                  onChange={handleParentChange} 
+                  className="w-full border border-gray-200 p-3 rounded-xl outline-emerald-500 bg-white text-sm" 
+                  required
+                >
+                  <option value="">Pilih Kriteria Induk</option>
+                  {kriteria.map(k => <option key={k.id} value={k.id}>{k.nama} ({k.kode})</option>)}
+                </select>
               )}
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-gray-200 rounded-lg">
-                  Batal
-                </button>
 
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg">
-                  Simpan
-                </button>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1 tracking-wider">ID Otomatis</label>
+                <input 
+                  type="text" 
+                  value={formData.kode} 
+                  readOnly 
+                  className="w-full bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl text-sm font-mono font-bold text-emerald-700 cursor-not-allowed" 
+                />
+              </div>
+
+              <input type="text" placeholder="Nama Kriteria/Sub" value={formData.nama} onChange={(e)=>setFormData({...formData, nama: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl outline-emerald-500 text-sm focus:bg-emerald-50/10" required />
+              
+              <select value={formData.sifat} onChange={(e)=>setFormData({...formData, sifat: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl outline-emerald-500 bg-white text-sm">
+                <option value="Benefit">Benefit</option>
+                <option value="Cost">Cost</option>
+              </select>
+
+              <div className="flex gap-3 pt-3">
+                <button type="button" onClick={closeModal} className="flex-1 bg-gray-100 text-gray-600 p-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">Batal</button>
+                <button type="submit" className="flex-1 bg-emerald-600 text-white p-3 rounded-xl font-bold shadow-lg shadow-emerald-100 transition-all hover:bg-emerald-700 active:scale-95">Simpan</button>
               </div>
             </form>
           </div>

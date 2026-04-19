@@ -1,48 +1,93 @@
-// src/pages/Dashboard.jsx
-import React from 'react';
-import { LayoutDashboard, Target, Users, BarChart3, TrendingUp, Download } from 'lucide-react';
-
-// ================= TAMBAHAN =================
+/* eslint-disable no-unused-vars */
+import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, Target, Users, BarChart3, TrendingUp, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-// ================= END TAMBAHAN =================
+import { db } from '../firebase';
+import { ref, onValue } from 'firebase/database';
+// Import Recharts untuk visualisasi
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const Dashboard = () => {
-
-  // ================= TAMBAHAN =================
   const navigate = useNavigate();
-  // ================= END TAMBAHAN =================
+  const [ranking, setRanking] = useState([]);
+  const [counts, setCounts] = useState({ kriteria: 0, subKriteria: 0, suppliers: 0 });
+  const [loading, setLoading] = useState(true);
 
-  // Data dummy untuk contoh tampilan
+  useEffect(() => {
+    // 1. Ambil Data Hasil Akhir (Ranking) untuk Chart
+    const rankRef = ref(db, 'hasil_akhir');
+    onValue(rankRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        setRanking(Object.values(data));
+      }
+    });
+
+    // 2. Ambil Statistik Utama
+    // Hitung Kriteria
+    onValue(ref(db, 'kriteria'), (snap) => {
+      setCounts(prev => ({ ...prev, kriteria: snap.exists() ? Object.keys(snap.val()).length : 0 }));
+    });
+
+    // Hitung Sub-Kriteria berdasarkan struktur sub_kriteria > [kode unik]
+    onValue(ref(db, 'sub_kriteria'), (snap) => {
+      setCounts(prev => ({ ...prev, subKriteria: snap.exists() ? Object.keys(snap.val()).length : 0 }));
+    });
+
+    // Hitung Total Supplier
+    onValue(ref(db, 'suppliers'), (snap) => {
+      setCounts(prev => ({ ...prev, suppliers: snap.exists() ? Object.keys(snap.val()).length : 0 }));
+      setLoading(false);
+    });
+  }, []);
+
+  // Konfigurasi Statistik: Warna icon disesuaikan agar konsisten (Teal, Blue, Emerald)
   const summaryStats = [
-    { id: 1, name: 'Total Kriteria', value: '5', icon: Target, color: 'text-teal-600', path: '/kriteria' },
-    { id: 2, name: 'Total Supplier', value: '12', icon: Users, color: 'text-emerald-600', path: '/supplier' },
-    { id: 3, name: 'Status Konsistensi AHP', value: 'Konsisten', icon: TrendingUp, color: 'text-green-600', path: '/ahp' },
+    { 
+      id: 1, 
+      name: 'Total Kriteria', 
+      value: counts.kriteria, 
+      icon: Target, 
+      color: 'text-teal-600', 
+      bgColor: 'bg-teal-50',
+      path: '/kriteria' 
+    },
+    { 
+      id: 2, 
+      name: 'Total Sub-Kriteria', 
+      value: counts.subKriteria, 
+      icon: Database, 
+      color: 'text-blue-600', 
+      bgColor: 'bg-blue-50',
+      path: '/kriteria' 
+    },
+    { 
+      id: 3, 
+      name: 'Total Supplier', 
+      value: counts.suppliers, 
+      icon: Users, 
+      color: 'text-emerald-600', 
+      bgColor: 'bg-emerald-50',
+      path: '/supplier' 
+    },
   ];
 
-  const topSuppliers = [
-    { rank: 1, name: 'PT. Maju Mapan Jaya', score: '0.945' },
-    { rank: 2, name: 'CV. Sejahtera Abadi', score: '0.882' },
-    { rank: 3, name: 'Firma Sumber Makmur', score: '0.810' },
-  ];
+  const topSuppliers = ranking.slice(0, 3);
+  const COLORS = ['#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0'];
 
   return (
-    <div className="p-6 md:p-8 space-y-8">
+    <div className="p-6 md:p-8 space-y-8 animate-in fade-in duration-500">
       {/* Header Halaman */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-white/60 backdrop-blur-sm rounded-xl border border-white/30 shadow-inner">
+          <div className="p-3 bg-white shadow-sm rounded-xl border border-emerald-50">
             <LayoutDashboard className="w-8 h-8 text-teal-700" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
-            <p className="text-gray-600">Ringkasan Sistem Pendukung Keputusan Pemilihan Supplier</p>
+            <h1 className="text-3xl font-black text-gray-800 tracking-tight uppercase">Dashboard</h1>
+            <p className="text-gray-500 text-sm font-medium italic">Ringkasan Sistem Pendukung Keputusan Pemilihan Supplier</p>
           </div>
         </div>
-        
-        <button className="flex items-center gap-2 px-5 py-2.5 glass-card bg-teal-600/10 hover:bg-teal-600/20 text-teal-800 transition-all duration-300 font-medium">
-          <Download className="w-4 h-4" />
-          Export Laporan Cepat
-        </button>
       </div>
 
       {/* Grid Statistik Utama */}
@@ -53,83 +98,100 @@ const Dashboard = () => {
             <div 
               key={item.id} 
               onClick={() => navigate(item.path)}
-              className="glass-card p-6 flex items-start gap-5 transition-transform hover:scale-[1.02] cursor-pointer"
+              className="bg-white p-6 rounded-[2rem] border border-gray-100 flex items-center gap-5 transition-all hover:shadow-xl hover:shadow-emerald-500/5 cursor-pointer group"
             >
-              <div className={`p-4 rounded-xl bg-white/80 border border-white/50 ${item.color}`}>
+              <div className={`p-4 rounded-2xl transition-transform group-hover:scale-110 ${item.bgColor} ${item.color}`}>
                 <Icon className="w-7 h-7" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500 tracking-wide uppercase">{item.name}</p>
-                <p className="text-4xl font-extrabold text-gray-900 mt-1">{item.value}</p>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{item.name}</p>
+                <p className="text-3xl font-black text-gray-900">{item.value}</p>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Grid Konten Utama */}
+      {/* Grid Konten Utama (Chart & Top 3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        <div className="lg:col-span-2 glass-card p-7 space-y-5">
-          <div className="flex items-center gap-3 justify-between">
+        <div className="lg:col-span-2 bg-white border border-gray-100 p-7 rounded-[2.5rem] shadow-sm space-y-6">
+          <div className="flex items-center justify-between">
             <div className='flex items-center gap-3'>
               <BarChart3 className="w-6 h-6 text-teal-600" />
-              <h2 className="text-xl font-semibold text-gray-800">Visualisasi Peringkat Supplier</h2>
+              <h2 className="text-xl font-bold text-gray-800">Visualisasi Peringkat</h2>
             </div>
-            <span className="text-xs font-mono text-gray-400 bg-white/50 px-2 py-1 rounded">Method: AHP + SAW</span>
+            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-tighter">AHP + SAW Method</span>
           </div>
           
-          <div className="w-full h-80 bg-white/50 rounded-xl border border-white/20 flex items-center justify-center border-dashed">
-            <div className='text-center text-gray-400'>
-              <BarChart3 className='w-16 h-16 mx-auto mb-3 opacity-50'/>
-              <p className='font-medium'>Grafik Batang Skor Akhir</p>
-              <p className='text-sm'>(Integrasikan Chart.js/Recharts di sini nanti)</p>
-            </div>
+          <div className="w-full h-80 pt-4">
+            {ranking.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={ranking} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="nama" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fontWeight: 'bold', fill: '#9ca3af' }}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fontWeight: 'bold', fill: '#9ca3af' }}
+                    domain={[0, 1]}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontWeight: 'bold', fontSize: '12px' }}
+                  />
+                  <Bar dataKey="skor" radius={[8, 8, 0, 0]} barSize={40}>
+                    {ranking.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-100 rounded-3xl italic">
+                <BarChart3 className="w-12 h-12 mb-2 opacity-20" />
+                <p className="text-sm font-bold">Belum ada data untuk divisualisasikan</p>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="glass-card p-7 space-y-6">
+        <div className="bg-white border border-gray-100 p-7 rounded-[2.5rem] shadow-sm space-y-6">
           <div className="flex items-center gap-3">
             <TrendingUp className="w-6 h-6 text-emerald-600" />
-            <h2 className="text-xl font-semibold text-gray-800">Top 3 Supplier Terbaik</h2>
+            <h2 className="text-xl font-bold text-gray-800">Top 3 Supplier</h2>
           </div>
           
           <div className="space-y-4">
-            {topSuppliers.map((sup) => (
-              <div key={sup.rank} className="flex items-center gap-4 p-4 bg-white/70 rounded-xl border border-white/50 shadow-sm transition-all hover:bg-white">
-                <div className={`flex items-center justify-center w-12 h-12 rounded-full font-bold text-lg border-2 
-                  ${sup.rank === 1 ? 'bg-amber-100 border-amber-300 text-amber-900 shadow-inner' : 
-                    sup.rank === 2 ? 'bg-slate-100 border-slate-300 text-slate-800' : 
-                    'bg-orange-100 border-orange-300 text-orange-900'}`}
+            {topSuppliers.map((sup, index) => (
+              <div key={sup.kode} className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-50 transition-all hover:bg-white hover:shadow-lg hover:shadow-emerald-500/5">
+                <div className={`flex items-center justify-center min-w-[48px] h-12 rounded-full font-black text-lg
+                  ${index === 0 ? 'bg-amber-100 text-amber-600' : 
+                    index === 1 ? 'bg-slate-100 text-slate-500' : 
+                    'bg-orange-100 text-orange-600'}`}
                 >
-                  #{sup.rank}
+                  #{index + 1}
                 </div>
-
-                <div className='flex-1'>
-                  <p className="font-semibold text-gray-900 truncate">{sup.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Skor Akhir: <span className='font-mono font-bold text-teal-700'>{sup.score}</span>
+                <div className='flex-1 truncate'>
+                  <p className="font-bold text-gray-800 text-sm uppercase truncate">{sup.nama}</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
+                    Skor Akhir: <span className='text-emerald-600 font-mono'>{Number(sup.skor).toFixed(2)}</span>
                   </p>
                 </div>
               </div>
             ))}
           </div>
 
-          <button className="w-full text-center py-3 text-sm font-medium text-teal-800 bg-teal-100/50 rounded-lg hover:bg-teal-100 transition border border-teal-200/50">
+          <button 
+            onClick={() => navigate('/laporan')}
+            className="w-full py-4 text-xs font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 rounded-2xl hover:bg-emerald-100 transition border border-emerald-100"
+          >
             Lihat Semua Peringkat
           </button>
-        </div>
-      </div>
-
-      {/* Langkah Cepat */}
-      <div className="glass-card p-7">
-        <h3 className="text-lg font-semibold text-gray-800 mb-5">Langkah Cepat Analisis</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center text-sm font-medium text-teal-900">
-          <div className="p-4 bg-white/60 rounded-lg border border-teal-100 hover:border-teal-200">1. Input Kriteria</div>
-          <div className="p-4 bg-white/60 rounded-lg border border-teal-100 hover:border-teal-200">2. Bobot AHP</div>
-          <div className="p-4 bg-white/60 rounded-lg border border-teal-100 hover:border-teal-200">3. Data Supplier</div>
-          <div className="p-4 bg-white/60 rounded-lg border border-teal-100 hover:border-teal-200">4. Nilai SAW</div>
-          <div className="p-4 bg-emerald-600 text-white rounded-lg shadow-md font-bold">5. Selesai!</div>
         </div>
       </div>
     </div>

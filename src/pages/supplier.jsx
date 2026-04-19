@@ -1,197 +1,145 @@
-import React, { useState } from 'react';
-import { Users, Plus, Search, Trash2, Edit3, ExternalLink, Building2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, Plus, Trash2, Edit3, X } from 'lucide-react';
+import { db } from '../firebase';
+import { ref, onValue, set, push, remove } from 'firebase/database';
 
 const Supplier = () => {
-  // Data dummy untuk tampilan tabel
-  const [suppliers, setSuppliers] = useState([
-    { id: 1, kode: 'S01', nama: 'PT. Maju Jaya', alamat: 'Jakarta', email: 'info@majujaya.com' },
-    { id: 2, kode: 'S02', nama: 'CV. Sumber Makmur', alamat: 'Surabaya', email: 'contact@sm.id' },
-    { id: 3, kode: 'S03', nama: 'Firma Global Tech', alamat: 'Bandung', email: 'hello@globaltech.com' },
-  ]);
-
-  // ================= TAMBAHAN =================
+  const [suppliers, setSuppliers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [formData, setFormData] = useState({ kode: "", nama: "", alamat: "", email: "" });
 
-  const [formData, setFormData] = useState({
-    kode: "",
-    nama: "",
-    alamat: "",
-    email: ""
-  });
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
+  useEffect(() => {
+    onValue(ref(db, 'suppliers'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.val();
+        setSuppliers(Object.keys(data).map(id => ({ id, ...data[id] })));
+      } else setSuppliers([]);
     });
-  };
+  }, []);
 
-  const handleAdd = () => {
+  // LOGIKA UTAMA: Hanya dijalankan saat user klik "Tambah"
+  const handleOpenAddModal = () => {
     setIsEdit(false);
-    setFormData({ kode: "", nama: "", alamat: "", email: "" });
-    setShowModal(true);
-  };
+    setSelectedId(null);
+    
+    // Hitung kode otomatis berdasarkan jumlah data: sp1, sp2, dst.
+    const nextIndex = suppliers.length + 1;
+    const autoCode = `sp${nextIndex}`;
 
-  const handleEdit = (sup) => {
-    setIsEdit(true);
-    setSelectedId(sup.id);
-    setFormData({
-      kode: sup.kode,
-      nama: sup.nama,
-      alamat: sup.alamat,
-      email: sup.email
+    setFormData({ 
+      kode: autoCode, 
+      nama: "", 
+      alamat: "", 
+      email: "" 
     });
     setShowModal(true);
   };
 
-  const handleDelete = (id) => {
-    setSuppliers(suppliers.filter((s) => s.id !== id));
+  const handleOpenEditModal = (s) => {
+    setIsEdit(true);
+    setSelectedId(s.id);
+    setFormData(s);
+    setShowModal(true);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    if (isEdit) {
-      const updated = suppliers.map((s) =>
-        s.id === selectedId ? { ...s, ...formData } : s
-      );
-      setSuppliers(updated);
-    } else {
-      const newSupplier = {
-        id: Date.now(),
-        ...formData
-      };
-      setSuppliers([...suppliers, newSupplier]);
-    }
-
+    if (isEdit) set(ref(db, `suppliers/${selectedId}`), formData);
+    else push(ref(db, 'suppliers'), formData);
+    
     setShowModal(false);
+    setFormData({ kode: "", nama: "", alamat: "", email: "" });
   };
-  // ================= END TAMBAHAN =================
 
   return (
-    <div className="p-6 md:p-8 space-y-6">
-      {/* Header Halaman */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 glass-card bg-emerald-500/10 border-emerald-200 text-emerald-700">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Manajemen Supplier</h1>
-            <p className="text-sm text-gray-500">Kelola daftar supplier yang akan dievaluasi dalam sistem.</p>
-          </div>
-        </div>
-
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Users/> Data Supplier</h1>
+        {/* Trigger fungsi handleOpenAddModal */}
         <button 
-          onClick={handleAdd} 
-          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-200 transition-all font-bold"
+          onClick={handleOpenAddModal} 
+          className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg hover:bg-emerald-700 transition"
         >
-          <Plus className="w-5 h-5" />
-          Tambah Supplier
+          <Plus size={18}/> Tambah
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {/* Kontrol & Filter */}
-        <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
-            <input 
-              type="text" 
-              placeholder="Cari supplier berdasarkan nama atau kode..." 
-              className="w-full pl-10 pr-4 py-2 bg-white/50 border border-emerald-100 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
-            <Building2 className="w-3.5 h-3.5" />
-            Total: {suppliers.length} Supplier Terdaftar
-          </div>
-        </div>
-
-        {/* Tabel Data Supplier */}
-        <div className="glass-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-separate border-spacing-0">
-              <thead className="bg-emerald-500/10 border-b border-emerald-100">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-emerald-900 uppercase tracking-widest text-center w-20">ID</th>
-                  <th className="px-6 py-4 text-xs font-bold text-emerald-900 uppercase tracking-widest">Nama Perusahaan</th>
-                  <th className="px-6 py-4 text-xs font-bold text-emerald-900 uppercase tracking-widest">Kontak / Email</th>
-                  <th className="px-6 py-4 text-xs font-bold text-emerald-900 uppercase tracking-widest">Alamat</th>
-                  <th className="px-6 py-4 text-xs font-bold text-emerald-900 uppercase tracking-widest text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-emerald-50">
-                {suppliers.map((sup) => (
-                  <tr key={sup.id} className="hover:bg-white/40 transition-colors group">
-                    <td className="px-6 py-4 text-center">
-                      <span className="text-xs font-mono font-bold text-emerald-600 bg-white px-2 py-1 rounded border border-emerald-100">
-                        {sup.kode}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 font-semibold text-gray-800">{sup.nama}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span>{sup.email}</span>
-                        <ExternalLink className="w-3 h-3 text-emerald-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 italic">{sup.alamat}</td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button 
-                          title="Edit" 
-                          onClick={() => handleEdit(sup)}
-                          className="p-2 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-all"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          title="Hapus" 
-                          onClick={() => handleDelete(sup.id)}
-                          className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          {/* Empty State Simulation */}
-          {suppliers.length === 0 && (
-            <div className="py-20 text-center">
-              <Users className="w-12 h-12 text-emerald-100 mx-auto mb-3" />
-              <p className="text-gray-400">Belum ada data supplier.</p>
-            </div>
-          )}
-        </div>
+      <div className="bg-white/50 border border-white backdrop-blur-md rounded-2xl overflow-hidden shadow-sm">
+        <table className="w-full text-left">
+          <thead className="bg-emerald-50/50">
+            <tr>
+              <th className="p-4">Kode</th>
+              <th className="p-4">Nama</th>
+              <th className="p-4">Alamat</th>
+              <th className="p-4 text-right pr-10">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {suppliers.map(s => (
+              <tr key={s.id} className="border-t border-white/60">
+                <td className="p-4 font-bold text-emerald-800">{s.kode}</td>
+                <td className="p-4">{s.nama}</td>
+                <td className="p-4 text-gray-500">{s.alamat}</td>
+                <td className="p-4 flex justify-end gap-3 pr-6">
+                  <button 
+                    onClick={() => handleOpenEditModal(s)} 
+                    className="text-blue-600 hover:scale-110 transition"
+                  >
+                    <Edit3 size={18}/>
+                  </button>
+                  <button 
+                    onClick={() => remove(ref(db, `suppliers/${s.id}`))} 
+                    className="text-red-600 hover:scale-110 transition"
+                  >
+                    <Trash2 size={18}/>
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* ================= TAMBAHAN MODAL ================= */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg">
-            <h2 className="text-lg font-bold mb-4">
-              {isEdit ? "Edit Supplier" : "Tambah Supplier"}
-            </h2>
-
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <input type="text" name="kode" placeholder="Kode Supplier" value={formData.kode} onChange={handleChange} className="w-full border p-2 rounded-lg" required />
-              <input type="text" name="nama" placeholder="Nama Supplier" value={formData.nama} onChange={handleChange} className="w-full border p-2 rounded-lg" required />
-              <input type="text" name="alamat" placeholder="Alamat" value={formData.alamat} onChange={handleChange} className="w-full border p-2 rounded-lg" />
-              <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} className="w-full border p-2 rounded-lg" />
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 bg-gray-200 rounded-lg">
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+            <button 
+               onClick={() => setShowModal(false)} 
+               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X size={20}/>
+            </button>
+            <h2 className="text-lg font-bold mb-4">{isEdit ? "Edit Supplier" : "Tambah Supplier"}</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Kode Supplier</label>
+                <input 
+                  type="text" 
+                  placeholder="Kode" 
+                  value={formData.kode} 
+                  onChange={(e)=>setFormData({...formData, kode: e.target.value})} 
+                  className={`w-full border p-3 rounded-xl outline-emerald-500 ${!isEdit ? 'bg-gray-50 text-emerald-700 font-bold cursor-not-allowed' : ''}`} 
+                  readOnly={!isEdit} // Kode otomatis hanya readOnly saat Tambah
+                  required 
+                />
+              </div>
+              <input type="text" placeholder="Nama" value={formData.nama} onChange={(e)=>setFormData({...formData, nama: e.target.value})} className="w-full border p-3 rounded-xl outline-emerald-500" required />
+              <input type="text" placeholder="Alamat" value={formData.alamat} onChange={(e)=>setFormData({...formData, alamat: e.target.value})} className="w-full border p-3 rounded-xl outline-emerald-500" />
+              
+              <div className="flex justify-end gap-3 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setShowModal(false)} 
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition"
+                >
                   Batal
                 </button>
-                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-lg">
+                <button 
+                  type="submit" 
+                  className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition"
+                >
                   Simpan
                 </button>
               </div>
@@ -199,8 +147,6 @@ const Supplier = () => {
           </div>
         </div>
       )}
-      {/* ================= END TAMBAHAN ================= */}
-
     </div>
   );
 };
