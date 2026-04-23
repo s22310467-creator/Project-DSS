@@ -19,21 +19,12 @@ const Supplier = () => {
     });
   }, []);
 
-  // LOGIKA UTAMA: Hanya dijalankan saat user klik "Tambah"
   const handleOpenAddModal = () => {
     setIsEdit(false);
     setSelectedId(null);
-    
-    // Hitung kode otomatis berdasarkan jumlah data: sp1, sp2, dst.
     const nextIndex = suppliers.length + 1;
     const autoCode = `sp${nextIndex}`;
-
-    setFormData({ 
-      kode: autoCode, 
-      nama: "", 
-      alamat: "", 
-      email: "" 
-    });
+    setFormData({ kode: autoCode, nama: "", alamat: "", email: "" });
     setShowModal(true);
   };
 
@@ -57,7 +48,6 @@ const Supplier = () => {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Users/> Data Supplier</h1>
-        {/* Trigger fungsi handleOpenAddModal */}
         <button 
           onClick={handleOpenAddModal} 
           className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg hover:bg-emerald-700 transition"
@@ -113,20 +103,44 @@ const Supplier = () => {
             </button>
             <h2 className="text-lg font-bold mb-4">{isEdit ? "Edit Supplier" : "Tambah Supplier"}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Input Kode Supplier dengan Label */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Kode Supplier</label>
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1 tracking-wider">Kode Supplier</label>
                 <input 
                   type="text" 
                   placeholder="Kode" 
                   value={formData.kode} 
                   onChange={(e)=>setFormData({...formData, kode: e.target.value})} 
                   className={`w-full border p-3 rounded-xl outline-emerald-500 ${!isEdit ? 'bg-gray-50 text-emerald-700 font-bold cursor-not-allowed' : ''}`} 
-                  readOnly={!isEdit} // Kode otomatis hanya readOnly saat Tambah
+                  readOnly={!isEdit}
                   required 
                 />
               </div>
-              <input type="text" placeholder="Nama" value={formData.nama} onChange={(e)=>setFormData({...formData, nama: e.target.value})} className="w-full border p-3 rounded-xl outline-emerald-500" required />
-              <input type="text" placeholder="Alamat" value={formData.alamat} onChange={(e)=>setFormData({...formData, alamat: e.target.value})} className="w-full border p-3 rounded-xl outline-emerald-500" />
+
+              {/* Input Nama Supplier dengan Label */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1 tracking-wider">Nama Supplier</label>
+                <input 
+                  type="text" 
+                  placeholder="Masukkan nama supplier..." 
+                  value={formData.nama} 
+                  onChange={(e)=>setFormData({...formData, nama: e.target.value})} 
+                  className="w-full border border-gray-200 p-3 rounded-xl outline-emerald-500 text-sm focus:bg-emerald-50/10" 
+                  required 
+                />
+              </div>
+
+              {/* Input Alamat Supplier dengan Label */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1 tracking-wider">Alamat Supplier</label>
+                <input 
+                  type="text" 
+                  placeholder="Masukkan alamat..." 
+                  value={formData.alamat} 
+                  onChange={(e)=>setFormData({...formData, alamat: e.target.value})} 
+                  className="w-full border border-gray-200 p-3 rounded-xl outline-emerald-500 text-sm focus:bg-emerald-50/10" 
+                />
+              </div>
               
               <div className="flex justify-end gap-3 pt-2">
                 <button 

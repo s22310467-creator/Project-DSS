@@ -115,19 +115,24 @@ const handleExportPDF = () => {
 
       let currentY = 38;
 
-      // 1. Tabel Kriteria
+// 1. Tabel Kriteria
       doc.setFontSize(12);
       doc.setTextColor(0);
       doc.text("1. Data Kriteria & Sub-Kriteria", 14, currentY);
       autoTable(doc, {
         startY: currentY + 4,
         head: [['Kode', 'Nama Kategori', 'Level', 'Sifat']],
-        body: listKolom.map(k => [k.id, k.nama, k.isParent ? 'Kriteria Utama' : 'Sub-Kriteria', k.sifat]),
+        body: listKolom.map(k => [
+          k.id, 
+          k.isParent ? k.nama : `   • ${k.nama}`, // PERBAIKAN: Beri indentasi visual seperti UI
+          k.isParent ? 'Kriteria Utama' : 'Sub-Kriteria', 
+          k.isParent ? k.sifat : '—' // PERBAIKAN: Sub-kriteria dicetak dengan tanda strip (—)
+        ]),
         theme: 'grid',
         headStyles: { fillColor: [5, 150, 105] }
       });
       currentY = doc.lastAutoTable.finalY + 10;
-
+      
       // 2. Tabel Supplier
       doc.text("2. Data Supplier", 14, currentY);
       autoTable(doc, {
