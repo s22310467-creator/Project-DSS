@@ -81,4 +81,3 @@ Sistem ini saat ini dikonfigurasi untuk keperluan **Demo Publik**. Mohon diperha
 
 ## 📄 Lisensi
 Proyek ini dikembangkan untuk kebutuhan internal/akademik. Seluruh aset desain dan identitas merek adalah hak cipta dari pihak yang bersangkutan.
-```
