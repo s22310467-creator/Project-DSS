@@ -8,6 +8,7 @@ const AnalisisAHP = () => {
   const [subKriteria, setSubKriteria] = useState([]);
   const [matrix, setMatrix] = useState({});
   const [bobot, setBobot] = useState({});
+  const [baseValues, setBaseValues] = useState({}); 
   const [loading, setLoading] = useState(true);
 
   const flatElements = useMemo(() => {
@@ -46,6 +47,45 @@ const AnalisisAHP = () => {
     setBobot(newBobot);
   }, []);
 
+  const recalculateEverything = useCallback((currentBaseValues, list) => {
+    if (list.length === 0) return;
+
+    const newMatrix = {};
+    list.forEach(row => {
+      list.forEach(col => {
+        const valRow = parseFloat(currentBaseValues[row.kode]) || 1;
+        const valCol = parseFloat(currentBaseValues[col.kode]) || 1;
+        
+        // Logika: Baris i vs Kolom j = Kolom j / Baris i
+        newMatrix[`${row.kode}-${col.kode}`] = valCol / valRow;
+      });
+    });
+
+    setMatrix(newMatrix);
+    calculateAHP(newMatrix, list);
+  }, [calculateAHP]);
+
+  // VALIDASI RENTANG 1-9
+  const handleBaseValueChange = (kode, value) => {
+    if (value === "") {
+      setBaseValues(prev => ({ ...prev, [kode]: "" }));
+      return;
+    }
+
+    const numValue = parseFloat(value);
+    // Jika angka valid dan berada dalam rentang 1-9
+    if (!isNaN(numValue) && numValue >= 1 && numValue <= 9) {
+      setBaseValues(prev => ({ ...prev, [kode]: value }));
+    }
+    // Jika di luar rentang, input tidak akan diperbarui (mengunci nilai sebelumnya)
+  };
+
+  useEffect(() => {
+    if (!loading && flatElements.length > 0) {
+      recalculateEverything(baseValues, flatElements);
+    }
+  }, [baseValues, flatElements, loading, recalculateEverything]);
+
   useEffect(() => {
     onValue(ref(db, 'kriteria'), (snap) => {
       if (snap.exists()) {
@@ -64,6 +104,15 @@ const AnalisisAHP = () => {
     onValue(ref(db, 'ahp_bobot'), (snap) => {
       if (snap.exists()) {
         const saved = snap.val();
+        
+        if (saved.baseValues) {
+          const restoredBase = {};
+          Object.keys(saved.baseValues).forEach(safeKey => {
+            restoredBase[safeKey.replace(/_/g, '.')] = saved.baseValues[safeKey];
+          });
+          setBaseValues(restoredBase);
+        }
+
         const restoredMatrix = {};
         if (saved.matrix) {
           Object.keys(saved.matrix).forEach(safeKey => {
@@ -85,47 +134,36 @@ const AnalisisAHP = () => {
     });
   }, []);
 
-  const handleMatrixChange = (row, col, value) => {
-    if (value !== "" && parseFloat(value) < 0) return;
-    setMatrix((prev) => {
-      const updated = { ...prev, [`${row}-${col}`]: value };
-      const num = parseFloat(value);
-      if (!isNaN(num) && num > 0) {
-        const reciprocal = Math.ceil((1 / num) * 100) / 100;
-        updated[`${col}-${row}`] = reciprocal;
-      } else {
-        updated[`${col}-${row}`] = "";
-      }
-      calculateAHP(updated, flatElements);
-      return updated;
-    });
-  };
-
   const handleSave = async () => {
     try {
       if (Object.keys(bobot).length === 0) {
         alert("Data bobot belum dihitung.");
         return;
       }
+      
+      const cleanedBaseValues = {};
+      Object.keys(baseValues).forEach(kode => {
+        cleanedBaseValues[kode.replace(/\./g, '_')] = baseValues[kode];
+      });
+
       const cleanedMatrix = {};
       flatElements.forEach(row => {
         flatElements.forEach(col => {
           const originalKey = `${row.kode}-${col.kode}`;
           const safeKey = originalKey.replace(/\./g, '_'); 
-          if (row.kode === col.kode) {
-            cleanedMatrix[safeKey] = 1;
-          } else {
-            cleanedMatrix[safeKey] = parseFloat(matrix[originalKey]) || 0;
-          }
+          cleanedMatrix[safeKey] = parseFloat(matrix[originalKey]) || 0;
         });
       });
+      
       const cleanedBobot = {};
       Object.keys(bobot).forEach(kode => {
         const safeKode = kode.replace(/\./g, '_');
         cleanedBobot[safeKode] = bobot[kode];
       });
+
       const dbRef = ref(db, 'ahp_bobot');
       await set(dbRef, {
+        baseValues: cleanedBaseValues, 
         matrix: cleanedMatrix,
         prioritas: cleanedBobot,
         updatedAt: new Date().toISOString()
@@ -140,7 +178,6 @@ const AnalisisAHP = () => {
 
   return (
     <div className="p-6 md:p-8 space-y-6 bg-gray-50/30 min-h-screen">
-      {/* Header */}
       <div className="flex items-center justify-between bg-white p-6 rounded-3xl border border-emerald-50 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-emerald-600 rounded-2xl text-white shadow-lg shadow-emerald-100">
@@ -156,7 +193,6 @@ const AnalisisAHP = () => {
         </button>
       </div>
 
-      {/* Skala Perbandingan (Saaty) - TAMBAHAN TERBARU */}
       <div className="bg-white border border-emerald-100 rounded-[2rem] p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-1 h-6 bg-emerald-500 rounded-full"></div>
@@ -202,30 +238,47 @@ const AnalisisAHP = () => {
               <div className="flex items-start gap-3">
                 <Info className="w-4 h-4 text-emerald-600 mt-1" />
                 <p className="text-[11px] text-emerald-800 leading-relaxed">
-                  <b>Catatan:</b> Nilai <b>2, 4, 6, 8</b> adalah nilai antara di antara dua pertimbangan yang berdekatan. Jika elemen <b>A</b> memiliki nilai <b>3</b> terhadap <b>B</b>, maka secara otomatis elemen <b>B</b> memiliki nilai <b>1/3 (0.33)</b> terhadap <b>A</b>.
+                  <b>Catatan:</b> Silakan isi baris <b>Skala Dasar</b> di tabel bawah. Matriks rasio berpasangan akan dihitung secara otomatis menggunakan rumus pembagian: <i>Nilai Skala Kolom dibagi Nilai Skala Baris</i>.
                 </p>
               </div>
-            </div>
-            <div className="flex gap-2">
-               <div className="flex-1 p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center gap-2">
-                  <span className="text-[10px] font-bold text-gray-400">INPUT</span>
-                  <ChevronRight size={12} className="text-gray-300" />
-                  <span className="text-[10px] font-black text-gray-700 uppercase italic">Baris vs Kolom</span>
-               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabel Matriks */}
       <div className="bg-white border border-gray-100 rounded-[2rem] overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider">
-                <th className="p-4 text-left sticky left-0 bg-emerald-600 z-10 border-r border-emerald-500/30 min-w-[150px]">Elemen</th>
+                <th className="p-4 text-left sticky left-0 bg-emerald-600 z-20 border-r border-emerald-500/30 min-w-[150px]">Kriteria</th>
                 {flatElements.map(el => (
                   <th key={el.kode} className="p-4 border-l border-emerald-500/30 text-center">{el.kode}</th>
+                ))}
+              </tr>
+              <tr className="bg-emerald-50/80 border-b border-emerald-100 shadow-sm">
+                <th className="p-4 text-left sticky left-0 bg-emerald-50 z-20 border-r border-emerald-100 text-emerald-800 text-[11px] font-black uppercase tracking-tight">
+                  Skala Dasar (1-9)
+                </th>
+                {flatElements.map(el => (
+                  <th key={`input-${el.kode}`} className="p-3 border-l border-emerald-100/50 text-center">
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max="9"
+                      step="1"
+                      value={baseValues[el.kode] || ''}
+                      onChange={(e) => handleBaseValueChange(el.kode, e.target.value)}
+                      onKeyDown={(e) => {
+                        // Mencegah input karakter 'e', '-', '+', '.', dan ','
+                        if (['e', 'E', '-', '+', '.', ','].includes(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      className="w-16 p-2 text-center text-xs font-bold text-emerald-800 bg-white rounded-lg border border-emerald-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all shadow-sm"
+                      placeholder="1-9"
+                    />
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -239,20 +292,16 @@ const AnalisisAHP = () => {
                   {flatElements.map((col, idxCol) => {
                     const isDiagonal = row.kode === col.kode;
                     const isLower = idxRow > idxCol;
-                    const cellValue = isDiagonal ? "1" : (matrix[`${row.kode}-${col.kode}`] || "");
+                    const cellValue = matrix[`${row.kode}-${col.kode}`];
 
                     return (
                       <td key={col.kode} className="p-3 border-l border-gray-50 text-center">
-                        <input 
-                          type="number" step="0.01"
-                          disabled={isDiagonal || isLower}
-                          value={cellValue}
-                          onChange={(e) => handleMatrixChange(row.kode, col.kode, e.target.value)}
-                          className={`w-16 p-2 text-center text-xs font-mono rounded-lg border outline-none transition-all
-                            ${isDiagonal ? 'bg-transparent border-transparent text-gray-400' : 
-                              isLower ? 'bg-emerald-50 text-emerald-700 font-bold border-transparent' : 
-                              'border-gray-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10'}`}
-                        />
+                        <div className={`w-16 mx-auto p-2 text-center text-xs font-mono rounded-lg border transition-all
+                          ${isDiagonal ? 'bg-transparent border-transparent text-gray-400' : 
+                            isLower ? 'bg-emerald-50/50 text-emerald-700 font-bold border-transparent' : 
+                            'bg-gray-50/50 border-gray-100 text-gray-600'}`}>
+                          {cellValue !== undefined && !isNaN(cellValue) ? Number(cellValue).toFixed(2) : "1.00"}
+                        </div>
                       </td>
                     );
                   })}
@@ -263,7 +312,6 @@ const AnalisisAHP = () => {
         </div>
       </div>
 
-      {/* Hasil Bobot Prioritas */}
       <div className="bg-white border border-gray-100 p-8 rounded-[2.5rem] shadow-sm space-y-6">
         <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Hasil Eigenvector (Tersimpan di Database)</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -286,7 +334,7 @@ const AnalisisAHP = () => {
         <div className="mt-4 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex gap-4 items-center">
           <Info className="text-emerald-600 w-5 h-5 shrink-0" />
           <p className="text-[11px] text-emerald-800 leading-relaxed font-medium">
-            Setiap kali Anda menekan <b>Simpan Analisis</b>, sistem akan memperbarui referensi <code>ahp_bobot</code> di Firebase, yang kemudian digunakan oleh sistem SAW untuk perangkingan.
+            Setiap kali Anda menekan <b>Simpan Analisis</b>, sistem akan memperbarui referensi <code>ahp_bobot</code> (termasuk input skala dasarnya) di Firebase, yang kemudian digunakan oleh sistem SAW untuk perangkingan.
           </p>
         </div>
       </div>
